@@ -1,0 +1,226 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小蜜蜂射擊遊戲</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            text-align: center;
+        }
+        canvas {
+            border: 2px solid #333;
+            background-color: #87CEEB;
+        }
+        #score, #time {
+            font-size: 20px;
+            margin: 10px 0;
+        }
+        #startButton {
+            font-size: 18px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div id="score">分數: 0</div>
+        <div id="time">時間: 30</div>
+        <button id="startButton">開始遊戲</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const scoreElement = document.getElementById('score');
+        const timeElement = document.getElementById('time');
+
+        let score = 0;
+        let timeLeft = 30;
+        let gameLoop;
+        let bee, bullets = [], balloons = [], birds = [];
+
+        class GameObject {
+            constructor(x, y, width, height, color) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.color = color;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+        }
+
+        class Bee extends GameObject {
+            constructor() {
+                super(canvas.width / 2, canvas.height - 30, 30, 30, 'yellow');
+            }
+
+            move(direction) {
+                if (direction === 'left' && this.x > 0) {
+                    this.x -= 5;
+                } else if (direction === 'right' && this.x < canvas.width - this.width) {
+                    this.x += 5;
+                }
+            }
+
+            shoot() {
+                bullets.push(new Bullet(this.x + this.width / 2, this.y));
+            }
+        }
+
+        class Bullet extends GameObject {
+            constructor(x, y) {
+                super(x, y, 5, 10, 'red');
+                this.speed = 7;
+            }
+
+            move() {
+                this.y -= this.speed;
+            }
+        }
+
+        class Balloon extends GameObject {
+            constructor() {
+                super(Math.random() * (canvas.width - 20), 0, 20, 30, 'pink');
+                this.speed = Math.random() * 2 + 1;
+            }
+
+            move() {
+                this.y += this.speed;
+            }
+        }
+
+        class Bird extends GameObject {
+            constructor() {
+                super(Math.random() * (canvas.width - 30), 0, 30, 20, 'brown');
+                this.speed = Math.random() * 3 + 2;
+            }
+
+            move() {
+                this.y += this.speed;
+            }
+        }
+
+        function startGame() {
+            score = 0;
+            timeLeft = 30;
+            bullets = [];
+            balloons = [];
+            birds = [];
+            bee = new Bee();
+
+            if (gameLoop) clearInterval(gameLoop);
+            gameLoop = setInterval(update, 1000 / 60);
+
+            startButton.disabled = true;
+            canvas.focus();
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            bee.draw();
+
+            bullets.forEach((bullet, index) => {
+                bullet.move();
+                bullet.draw();
+                if (bullet.y < 0) bullets.splice(index, 1);
+            });
+
+            if (Math.random() < 0.02) balloons.push(new Balloon());
+            if (Math.random() < 0.01) birds.push(new Bird());
+
+            balloons.forEach((balloon, bIndex) => {
+                balloon.move();
+                balloon.draw();
+
+                bullets.forEach((bullet, buIndex) => {
+                    if (collision(bullet, balloon)) {
+                        balloons.splice(bIndex, 1);
+                        bullets.splice(buIndex, 1);
+                        score++;
+                    }
+                });
+
+                if (balloon.y > canvas.height) balloons.splice(bIndex, 1);
+            });
+
+            birds.forEach((bird, bIndex) => {
+                bird.move();
+                bird.draw();
+
+                bullets.forEach((bullet, buIndex) => {
+                    if (collision(bullet, bird)) {
+                        birds.splice(bIndex, 1);
+                        bullets.splice(buIndex, 1);
+                        score--;
+                    }
+                });
+
+                if (bird.y > canvas.height) birds.splice(bIndex, 1);
+            });
+
+            scoreElement.textContent = `分數: ${score}`;
+            timeElement.textContent = `時間: ${timeLeft}`;
+
+            if (score >= 20) {
+                endGame('恭喜過關！');
+            }
+
+            if (timeLeft <= 0) {
+                endGame('時間到，遊戲結束！');
+            }
+        }
+
+        function collision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        function endGame(message) {
+            clearInterval(gameLoop);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = '30px Arial';
+            ctx.fillText(message, canvas.width / 2 - 100, canvas.height / 2);
+            startButton.disabled = false;
+        }
+
+        startButton.addEventListener('click', startGame);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') bee.move('left');
+            if (e.key === 'ArrowRight') bee.move('right');
+            if (e.key === ' ') bee.shoot();
+        });
+
+        setInterval(() => {
+            if (timeLeft > 0 && score < 20) timeLeft--;
+        }, 1000);
+    </script>
+</body>
+</html>
